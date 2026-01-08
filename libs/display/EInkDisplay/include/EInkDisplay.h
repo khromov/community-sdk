@@ -12,9 +12,10 @@ class EInkDisplay {
 
   // Refresh modes (guarded to avoid redefinition in test builds)
   enum RefreshMode {
-    FULL_REFRESH,  // Full refresh with complete waveform
-    HALF_REFRESH,  // Half refresh (1720ms) - balanced quality and speed
-    FAST_REFRESH   // Fast refresh using custom LUT
+    FULL_REFRESH,       // Full refresh with complete waveform
+    HALF_REFRESH,       // Half refresh (1720ms) - balanced quality and speed
+    FAST_REFRESH,       // Fast refresh using custom LUT
+    ULTRA_FAST_REFRESH  // Ultra-fast 4-level grayscale (~50-100ms)
   };
 
   // Initialize the display hardware and driver
@@ -42,12 +43,12 @@ class EInkDisplay {
   void cleanupGrayscaleBuffers(const uint8_t* bwBuffer);
 #endif
 
-  void displayBuffer(RefreshMode mode = FAST_REFRESH);
+  void displayBuffer(RefreshMode mode = ULTRA_FAST_REFRESH);
   // EXPERIMENTAL: Windowed update - display only a rectangular region
   void displayWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   void displayGrayBuffer(bool turnOffScreen = false);
 
-  void refreshDisplay(RefreshMode mode = FAST_REFRESH, bool turnOffScreen = false);
+  void refreshDisplay(RefreshMode mode = ULTRA_FAST_REFRESH, bool turnOffScreen = false);
 
   // debug function
   void grayscaleRevert();
