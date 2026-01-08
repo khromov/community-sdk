@@ -107,6 +107,79 @@ const unsigned char lut_grayscale_revert[] PROGMEM = {
     // Reserved
     0x00, 0x00};
 
+// Ultra-fast 4-level grayscale LUT (~50-100ms target vs ~500ms standard)
+// Tradeoffs: More ghosting, lower contrast, may need tuning per display
+const unsigned char lut_ultrafast_4gray[] PROGMEM = {
+    // VS waveforms (5 groups × 10 bytes = 50 bytes)
+    // Each byte encodes 4 sub-phases (2 bits each): 00=Hi-Z, 01=VSH1, 10=VSH2(white), 11=VSL(black)
+
+    // L0: No change (pixel stays same)
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+    // L1: Light gray - single short positive pulse (drives toward white)
+    0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+    // L2: Medium gray - balanced short pulse
+    0xA8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+    // L3: Dark gray - single short negative pulse (drives toward black)
+    0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+    // L4: VCOM pattern (keep at zero for differential mode)
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+    // TP/RP timing groups (10 groups × 5 bytes = 50 bytes)
+    // Format: [TP_A, TP_B, TP_C, TP_D, RP] - frame counts per phase
+    // Ultra-minimal: single timing group with 2 frames
+    0x02, 0x00, 0x00, 0x00, 0x00,  // G0: 2 frames only
+    0x00, 0x00, 0x00, 0x00, 0x00,  // G1-G9: disabled
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+
+    // Frame rate control (5 bytes) - maximum speed
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+
+    // Voltages: slightly boosted for faster switching
+    0x17,  // VGH (gate voltage) - keep default
+    0x48,  // VSH1 - slightly increased from 0x41
+    0xB0,  // VSH2 - slightly increased from 0xA8
+    0x38,  // VSL - slightly increased magnitude from 0x32
+    0x30,  // VCOM - keep default
+
+    // Reserved
+    0x00, 0x00};
+
+// Corresponding revert LUT for cleanup
+const unsigned char lut_ultrafast_4gray_revert[] PROGMEM = {
+    // VS waveforms - aggressive cleanup
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // L0
+    0xAA, 0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // L1
+    0xA8, 0xA8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // L2
+    0xAA, 0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // L3
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // VCOM
+
+    // TP/RP - slightly longer for better cleanup
+    0x02, 0x02, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x17, 0x48, 0xB0, 0x38, 0x30,
+    0x00, 0x00};
+
 EInkDisplay::EInkDisplay(int8_t sclk, int8_t mosi, int8_t cs, int8_t dc, int8_t rst, int8_t busy)
     : _sclk(sclk),
       _mosi(mosi),
@@ -423,12 +496,12 @@ void EInkDisplay::displayBuffer(RefreshMode mode) {
   // Set up full screen RAM area
   setRamArea(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 
-  if (mode != FAST_REFRESH) {
+  if (mode != FAST_REFRESH && mode != ULTRA_FAST_REFRESH) {
     // For full refresh, write to both buffers before refresh
     writeRamBuffer(CMD_WRITE_RAM_BW, frameBuffer, BUFFER_SIZE);
     writeRamBuffer(CMD_WRITE_RAM_RED, frameBuffer, BUFFER_SIZE);
   } else {
-    // For fast refresh, write to BW buffer only
+    // For fast refresh (including ultra-fast), write to BW buffer only
     writeRamBuffer(CMD_WRITE_RAM_BW, frameBuffer, BUFFER_SIZE);
     // In single buffer mode, the RED RAM should already contain the previous frame
     // In dual buffer mode, we write back frameBufferActive which is the last frame
@@ -441,8 +514,18 @@ void EInkDisplay::displayBuffer(RefreshMode mode) {
   swapBuffers();
 #endif
 
+  // Load custom LUT for ultra-fast refresh
+  if (mode == ULTRA_FAST_REFRESH) {
+    setCustomLUT(true, lut_ultrafast_4gray);
+  }
+
   // Refresh the display
   refreshDisplay(mode);
+
+  // Disable custom LUT after ultra-fast refresh
+  if (mode == ULTRA_FAST_REFRESH) {
+    setCustomLUT(false);
+  }
 
 #ifdef EINK_DISPLAY_SINGLE_BUFFER_MODE
   // In single buffer mode always sync RED RAM after refresh to prepare for next fast refresh
@@ -541,7 +624,7 @@ void EInkDisplay::displayGrayBuffer(const bool turnOffScreen) {
 void EInkDisplay::refreshDisplay(const RefreshMode mode, const bool turnOffScreen) {
   // Configure Display Update Control 1
   sendCommand(CMD_DISPLAY_UPDATE_CTRL1);
-  sendData((mode == FAST_REFRESH) ? CTRL1_NORMAL : CTRL1_BYPASS_RED);  // Configure buffer comparison mode
+  sendData((mode == FAST_REFRESH || mode == ULTRA_FAST_REFRESH) ? CTRL1_NORMAL : CTRL1_BYPASS_RED);  // Configure buffer comparison mode
 
   // best guess at display mode bits:
   // bit | hex | name                    | effect
@@ -577,12 +660,12 @@ void EInkDisplay::refreshDisplay(const RefreshMode mode, const bool turnOffScree
     sendCommand(CMD_WRITE_TEMP);
     sendData(0x5A);
     displayMode |= 0xD4;
-  } else {  // FAST_REFRESH
+  } else {  // FAST_REFRESH or ULTRA_FAST_REFRESH
     displayMode |= customLutActive ? 0x0C : 0x1C;
   }
 
   // Power on and refresh display
-  const char* refreshType = (mode == FULL_REFRESH) ? "full" : (mode == HALF_REFRESH) ? "half" : "fast";
+  const char* refreshType = (mode == FULL_REFRESH) ? "full" : (mode == HALF_REFRESH) ? "half" : (mode == ULTRA_FAST_REFRESH) ? "ultra-fast" : "fast";
   Serial.printf("[%lu]   Powering on display 0x%02X (%s refresh)...\n", millis(), displayMode, refreshType);
   sendCommand(CMD_DISPLAY_UPDATE_CTRL2);
   sendData(displayMode);
