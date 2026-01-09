@@ -177,7 +177,7 @@ const unsigned char lut_ultrafast_4gray_revert[] PROGMEM = {
 
 // B/W-specific ultrafast LUT for differential B/W mode
 // Designed for fast B/W transitions, not grayscale
-// Improved: Extended waveform (12 frames vs 8) to reduce ghosting and incomplete transitions
+// Improved: Stronger waveform (16 frames, extended drive pulses) for complete transitions
 const unsigned char lut_ultrafast_bw[] PROGMEM = {
     // VS Waveforms (5 groups x 10 bytes = 50 bytes)
     // Each byte = 4 phases, 2 bits each: [P0|P1|P2|P3]
@@ -187,12 +187,12 @@ const unsigned char lut_ultrafast_bw[] PROGMEM = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 
     // L1: Black→White - RED=0, BW=1 - drive WHITE (VSH2 = 10)
-    // Extended drive: 0xAA (VSH2 x4), 0xAA (VSH2 x4), 0xA0 (VSH2 x2 + settle)
-    0xAA, 0xAA, 0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    // STRONGER: 0xAA x4 = 16 full phases of VSH2 for complete white transition
+    0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 
     // L2: White→Black - RED=1, BW=0 - drive BLACK (VSL = 11)
-    // Extended drive: 0xFF (VSL x4), 0xFF (VSL x4), 0xF0 (VSL x2 + settle)
-    0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    // STRONGER: 0xFF x4 = 16 full phases of VSL for complete black transition
+    0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 
     // L3: No change (both white) - RED=1, BW=1
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -200,12 +200,12 @@ const unsigned char lut_ultrafast_bw[] PROGMEM = {
     // L4 (VCOM) - Must remain all zeros (active VCOM causes drift to white)
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 
-    // TP/RP groups - 3 groups (12 frames total) for complete transitions
+    // TP/RP groups - 4 groups (16 frames total) for stronger drive
     // Format: [TP0, TP1, TP2, TP3, RP] where TP=frame count, RP=repeat
     0x01, 0x01, 0x01, 0x01, 0x00,  // G0: 4 frames (main drive)
     0x01, 0x01, 0x01, 0x01, 0x00,  // G1: 4 frames (secondary drive)
-    0x01, 0x01, 0x01, 0x01, 0x00,  // G2: 4 frames (settle)
-    0x00, 0x00, 0x00, 0x00, 0x00,  // G3: disabled
+    0x01, 0x01, 0x01, 0x01, 0x00,  // G2: 4 frames (tertiary drive)
+    0x01, 0x01, 0x01, 0x01, 0x00,  // G3: 4 frames (settle)
     0x00, 0x00, 0x00, 0x00, 0x00,  // G4: disabled
     0x00, 0x00, 0x00, 0x00, 0x00,  // G5: disabled
     0x00, 0x00, 0x00, 0x00, 0x00,  // G6: disabled
